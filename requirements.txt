@@ -1,5 +1,9 @@
 langchain
 langchain-openai
-python-dotenv
-google-generativeai
 langchain-google-genai
+langchain-community
+langchain-text-splitters
+pypdf
+chromadb
+tavily-python
+python-dotenv

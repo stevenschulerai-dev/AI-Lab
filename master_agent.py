@@ -5,13 +5,14 @@ import chromadb
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from tavily import TavilyClient
 
 # Load environment variables
 load_dotenv()
 
 # --- ENGINE CONFIGURATION ---
-# Optimized for Groq (Speed), Gemini (Context), and OpenAI (Reasoning)
 fast_engine = ChatOpenAI(
     openai_api_base="https://api.groq.com/openai/v1",
     openai_api_key=os.getenv("GROQ_API_KEY"),
@@ -31,7 +32,6 @@ critical_engine = ChatOpenAI(
 tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 
 # --- PERSISTENT MEMORY SETUP ---
-# ChromaDB stores historical interactions locally in English naming convention
 chroma_client = chromadb.PersistentClient(path="./memory_db")
 memory_collection = chroma_client.get_or_create_collection(name="agent_history")
 
@@ -60,11 +60,35 @@ def write_to_disk(file_name, code_content):
     with open(file_name, 'w', encoding='utf-8') as f:
         f.write(sanitized)
 
+def process_pdf(file_path):
+    """Reads a PDF, chunks the text, and stores it in memory."""
+    print(f"LOG: Reading and indexing PDF: {file_path}...")
+    try:
+        loader = PyPDFLoader(file_path)
+        pages = loader.load()
+        
+        # Split text into manageable chunks
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+        chunks = text_splitter.split_documents(pages)
+        
+        # Add to ChromaDB
+        for i, chunk in enumerate(chunks):
+            memory_collection.add(
+                documents=[chunk.page_content],
+                metadatas=[{"source": file_path, "page": i}],
+                ids=[f"{file_path}_{i}_{time.time()}"]
+            )
+        print(f"SUCCESS: Indexed {len(chunks)} fragments from the document.")
+        return True
+    except Exception as e:
+        print(f"ERROR: Could not process PDF: {e}")
+        return False
+
 # --- MAIN ORCHESTRATOR ---
 
 print("\n--- AI-LAB ORCHESTRATION SYSTEM: ONLINE ---")
 print("Developer: stevenschulerai-dev")
-print("Capabilities: Local File I/O | Web Search | Self-Correction Loop")
+print("Capabilities: Local File I/O | Web Search | PDF Intelligence | Self-Correction")
 
 while True:
     user_input = input("\nAdmin > ")
@@ -72,15 +96,22 @@ while True:
         break
 
     try:
-        # 1. CASE: AUTOMATED CODE GENERATION & DEBUGGING
-        if "file" in user_input.lower() or "create" in user_input.lower():
+        # 1. CASE: PDF INGESTION
+        if ".pdf" in user_input.lower() and ("read" in user_input.lower() or "learn" in user_input.lower()):
+            # Find the filename in the input (e.g., "read manual.pdf")
             words = user_input.split()
-            
-            # Smart Filename Parsing
+            pdf_file = next((w for w in words if w.lower().endswith(".pdf")), None)
+            if pdf_file and os.path.exists(pdf_file):
+                process_pdf(pdf_file)
+            else:
+                print(f"ERROR: File '{pdf_file}' not found in directory.")
+
+        # 2. CASE: AUTOMATED CODE GENERATION & DEBUGGING
+        elif "file" in user_input.lower() or "create" in user_input.lower():
+            words = user_input.split()
             try:
                 if "file" in words:
                     idx = words.index("file")
-                    # Check if the next word is a filler like 'called' or 'named'
                     if idx + 1 < len(words) and words[idx + 1].lower() in ["called", "named"]:
                         target_file = words[idx + 2]
                     else:
@@ -106,11 +137,9 @@ while True:
                     ai_response = context_engine.invoke(prompt)
 
                 write_to_disk(target_file, ai_response.content)
+                success, logs = execute_script(target_file)
                 
-                # Auto-testing the generated code
-                is_valid, logs = execute_script(target_file)
-                
-                if is_valid:
+                if success:
                     print("SUCCESS: Code validated and operational.")
                     print(f"\n--- SCRIPT OUTPUT ---\n{logs}---------------------")
                     break
@@ -118,11 +147,8 @@ while True:
                     print("WARNING: Execution error found. Retrying with debugger...")
                     last_error = logs
                     attempts += 1
-            
-            if attempts == max_retries:
-                print(f"ERROR: Failed to self-correct after {max_retries} attempts.")
 
-        # 2. CASE: DEEP WEB RESEARCH
+        # 3. CASE: DEEP WEB RESEARCH
         elif any(trigger in user_input.lower() for trigger in ["search", "investigate", "web"]):
             print(f"LOG: Researching web data for: {user_input}...")
             search_results = tavily.search(query=user_input, max_results=3)
@@ -130,16 +156,15 @@ while True:
             final_response = context_engine.invoke(f"Context: {raw_context}\nTask: {user_input}")
             print(f"\n[MASTER AGENT]\n{final_response.content}\n")
 
-        # 3. CASE: GENERAL QUERY
+        # 4. CASE: GENERAL QUERY (Now with Memory Retrieval)
         else:
-            final_response = fast_engine.invoke(user_input)
+            # First, check memory for relevant local data
+            results = memory_collection.query(query_texts=[user_input], n_results=2)
+            local_context = "\n".join(results['documents'][0]) if results['documents'] else ""
+            
+            full_prompt = f"Local Context: {local_context}\nQuestion: {user_input}"
+            final_response = fast_engine.invoke(full_prompt)
             print(f"\n[MASTER AGENT]\n{final_response.content}\n")
-
-        # Save interaction to local vector memory
-        memory_collection.add(
-            documents=[f"User: {user_input} | Status: Processed"],
-            ids=[str(time.time())]
-        )
 
     except Exception as e:
         print(f"CRITICAL ERROR: {e}")
