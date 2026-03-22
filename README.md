@@ -1,26 +1,16 @@
-# 🤖 AI-Lab
+# AI-Lab Orchestration System
 
-Welcome to my **AI Agent Development Laboratory**. This project serves as a professional-grade environment for building, testing, and deploying intelligent agents using Python and LangChain.
+A modular AI agent architecture designed for automated software development, hardware diagnostics, and real-time web research. 
 
-## 🎯 Project Goals
-- Develop autonomous agents capable of complex decision-making.
-- Implement secure practices for API management (using `.env`).
-- Build scalable logic workflows for task automation.
+## Features
+- **Multi-Engine Routing**: Orchestrates tasks between GPT-4o, Gemini 2.5 Flash, and Llama 3.1.
+- **Autonomous Debugger**: Executes generated code and self-corrects based on terminal stack traces.
+- **Persistent Memory**: Uses ChromaDB to maintain long-term context of system configurations.
+- **Web Integration**: Real-time information retrieval via Tavily Search API.
 
-## 🛠️ Tech Stack
-- **Language:** Python 3.14+
-- **Version Control:** Git & GitHub
-- **Security:** Python-dotenv for environment isolation
-- **Frameworks:** LangChain (Ongoing)
+## Requirements
+- Python 3.14+
+- `chromadb`, `langchain`, `tavily-python`, `python-dotenv`
 
-## 🚀 Environment Setup
-This laboratory is powered by high-performance hardware (**i9-13900K / RTX 5080**) to ensure rapid processing and model training.
-
-### Installation
-1. Clone the repository.
-2. Create a virtual environment: `python -m venv .venv`
-3. Install dependencies: `pip install -r requirements.txt`
-4. Configure your `.env` file with your API keys.
-
----
-*Created with passion for AI engineering by Steven Schuler Serna.*
+## Author
+Developed by **steven schuler**
