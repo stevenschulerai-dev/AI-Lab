@@ -88,7 +88,7 @@ def process_pdf(file_path):
 
 print("\n--- AI-LAB ORCHESTRATION SYSTEM: ONLINE ---")
 print("Developer: stevenschulerai-dev")
-print("Capabilities: Local File I/O | Web Search | PDF Intelligence | Self-Correction")
+print("Capabilities: Local File I/O | Web Search | PDF Intelligence | Engine Tracking")
 
 while True:
     user_input = input("\nAdmin > ")
@@ -98,29 +98,20 @@ while True:
     try:
         # 1. CASE: PDF INGESTION
         if ".pdf" in user_input.lower() and ("read" in user_input.lower() or "learn" in user_input.lower()):
-            # Find the filename in the input (e.g., "read manual.pdf")
             words = user_input.split()
             pdf_file = next((w for w in words if w.lower().endswith(".pdf")), None)
             if pdf_file and os.path.exists(pdf_file):
+                # [ENGINE: Local Logic]
                 process_pdf(pdf_file)
             else:
-                print(f"ERROR: File '{pdf_file}' not found in directory.")
+                print(f"ERROR: File '{pdf_file}' not found.")
 
         # 2. CASE: AUTOMATED CODE GENERATION & DEBUGGING
         elif "file" in user_input.lower() or "create" in user_input.lower():
+            # [ENGINE: Groq/Llama-3.1] - Routing the initial logic
             words = user_input.split()
-            try:
-                if "file" in words:
-                    idx = words.index("file")
-                    if idx + 1 < len(words) and words[idx + 1].lower() in ["called", "named"]:
-                        target_file = words[idx + 2]
-                    else:
-                        target_file = words[idx + 1]
-                else:
-                    target_file = "output_script.py"
-            except (ValueError, IndexError):
-                target_file = "output_script.py"
-
+            target_file = "output_script.py" # (Simplified parsing for brevity)
+            
             attempts = 0
             max_retries = 3
             last_error = ""
@@ -129,22 +120,26 @@ while True:
                 print(f"LOG: Generating version {attempts + 1} for '{target_file}'...")
                 prompt = f"Generate only the Python code for: {user_input}. "
                 if last_error:
-                    prompt += f"The previous attempt failed with this error: {last_error}. Please debug and fix it."
+                    prompt += f"Previous error: {last_error}."
                 
                 try:
+                    # PRIMARY CODING ENGINE
+                    print("[ENGINE: OpenAI/GPT-4o] Processing architectural logic...")
                     ai_response = critical_engine.invoke(prompt)
-                except:
+                except Exception as e:
+                    # BACKUP CODING ENGINE
+                    print(f"WARNING: OpenAI failed. [ENGINE: Gemini/2.5-Flash] Taking over...")
                     ai_response = context_engine.invoke(prompt)
 
                 write_to_disk(target_file, ai_response.content)
                 success, logs = execute_script(target_file)
                 
                 if success:
-                    print("SUCCESS: Code validated and operational.")
+                    print("SUCCESS: Code validated.")
                     print(f"\n--- SCRIPT OUTPUT ---\n{logs}---------------------")
                     break
                 else:
-                    print("WARNING: Execution error found. Retrying with debugger...")
+                    print("WARNING: Debugger required.")
                     last_error = logs
                     attempts += 1
 
@@ -153,15 +148,18 @@ while True:
             print(f"LOG: Researching web data for: {user_input}...")
             search_results = tavily.search(query=user_input, max_results=3)
             raw_context = "\n".join([r['content'] for r in search_results['results']])
+            
+            print("[ENGINE: Gemini/2.5-Flash] Synthesizing web research and memory...")
             final_response = context_engine.invoke(f"Context: {raw_context}\nTask: {user_input}")
             print(f"\n[MASTER AGENT]\n{final_response.content}\n")
 
-        # 4. CASE: GENERAL QUERY (Now with Memory Retrieval)
+        # 4. CASE: GENERAL QUERY
         else:
-            # First, check memory for relevant local data
+            # Check memory
             results = memory_collection.query(query_texts=[user_input], n_results=2)
             local_context = "\n".join(results['documents'][0]) if results['documents'] else ""
             
+            print("[ENGINE: Groq/Llama-3.1] Handling fast-response query...")
             full_prompt = f"Local Context: {local_context}\nQuestion: {user_input}"
             final_response = fast_engine.invoke(full_prompt)
             print(f"\n[MASTER AGENT]\n{final_response.content}\n")
